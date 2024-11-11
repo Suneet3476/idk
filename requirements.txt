@@ -1,14 +1,5 @@
 Flask
-gunicorn
 scikit-learn
 pandas
-numpy
 nltk
-transformers
-torch
-sentence-transformers
-imbalanced-learn
-shap
-lime
-xgboost
-flask-cors
+gunicorn
