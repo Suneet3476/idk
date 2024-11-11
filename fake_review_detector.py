@@ -19,58 +19,60 @@ nltk.download('wordnet')
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
 
-# Load data from CSV file (Make sure the file exists and is correctly placed)
-try:
-    df = pd.read_csv('reviews.csv')
-except FileNotFoundError:
-    raise Exception("The file 'reviews.csv' was not found. Please make sure it's in the correct directory.")
+# Load and preprocess the data from CSV
+def load_and_preprocess_data(file_path='reviews.csv'):
+    try:
+        df = pd.read_csv(file_path)
+    except FileNotFoundError:
+        raise Exception("The file 'reviews.csv' was not found. Please make sure it's in the correct directory.")
+    
+    # Ensure no missing values in 'label' column and preprocess text
+    df.dropna(subset=['label'], inplace=True)
+    df['review'] = df['review'].apply(preprocess_text)
+    
+    # Ensure 'label' is numeric (1 for true, 0 for fake)
+    df['label'] = df['label'].astype(int)
+    
+    return df
 
-# Data preprocessing function
+# Preprocess function
 def preprocess_text(text):
     text = text.lower()  # Lowercase text
     text = ''.join([char for char in text if char not in string.punctuation])  # Remove punctuation
     text = ' '.join([lemmatizer.lemmatize(word) for word in text.split() if word not in stop_words])  # Remove stopwords and lemmatize
     return text
 
-# Apply preprocessing to the dataset
-df['review'] = df['review'].apply(preprocess_text)
-
-# Ensure 'label' column is numeric (1 for fake, 0 for genuine)
-if not pd.api.types.is_numeric_dtype(df['label']):
-    df['label'] = df['label'].astype(int)
-
-# Split the dataset into training and test sets
+# Load and split data
+df = load_and_preprocess_data()
 X = df['review']
 y = df['label']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Create a pipeline with TfidfVectorizer and LogisticRegression
+# Create the model pipeline
 pipeline = make_pipeline(
     TfidfVectorizer(),
     LogisticRegression(solver='liblinear', C=1.0, random_state=42)
 )
 
-# Train the model
+# Train the initial model
 pipeline.fit(X_train, y_train)
 
-# Function to predict if a review is fake or genuine
+# Predict function for new reviews
 def predict_review(review):
-    # Preprocess the review
     preprocessed_review = preprocess_text(review)
-    # Predict
     prediction = pipeline.predict([preprocessed_review])[0]
     confidence = pipeline.predict_proba([preprocessed_review])[0].max() * 100
-    # Interpret the result
-    result = 'Fake' if prediction == 1 else 'Genuine'
+    result = 'True' if prediction == 1 else 'Fake'
     return result, f"{confidence:.2f}%"
 
-# Self-learning function to update the model with new data
+# Function to update the model with a new review and label
 def update_model(new_review, new_label):
     global X_train, y_train
-    # Preprocess the new review
     preprocessed_review = preprocess_text(new_review)
+    
     # Append new data to the training set
     X_train = pd.concat([X_train, pd.Series(preprocessed_review)], ignore_index=True)
     y_train = pd.concat([y_train, pd.Series(new_label)], ignore_index=True)
-    # Retrain the model
+    
+    # Retrain the model on the updated dataset
     pipeline.fit(X_train, y_train)
